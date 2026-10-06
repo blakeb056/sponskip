@@ -1,6 +1,4 @@
-// Finds sponsor segments: 1) local cache, 2) SponsorBlock crowd data, 3) keyword detection (free, default),
-// 4) Gemini only if the user set an API key AND keywords found nothing.
-const MODEL = "gemini-flash-latest";
+// Finds sponsor segments: 1) local cache, 2) SponsorBlock crowd data, 3) 100% local keyword/linguistic detector.
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg.type === "analyze") {
@@ -68,11 +66,7 @@ async function findSegments(id, transcript, force = false) {
 
   if (!transcript) return { segments: [], source: "no captions available" };
   const kw = detectByKeywords(transcript);
-  if (kw.length) return save(kw, "keywords");
-
-  const { apiKey } = await chrome.storage.sync.get("apiKey");
-  if (apiKey) return save(await gemini(transcript), "gemini");
-  return save([], "keywords");
+  return save(kw, "keywords");
 }
 
 // ---- Linguistic Segment Detector ----
@@ -228,37 +222,4 @@ async function sponsorBlock(id) {
     if (!r.ok) return [];
     return (await r.json()).map(s => ({ start: s.segment[0], end: s.segment[1], reason: s.category }));
   } catch { return []; }
-}
-
-async function gemini(transcript) {
-  const { apiKey } = await chrome.storage.sync.get("apiKey");
-  if (!apiKey) throw new Error("no Gemini API key set (open extension options)");
-  const prompt = `Below is a YouTube transcript; each line starts with [seconds].
-Find every paid sponsor read / ad segment (e.g. "today's sponsor", "this video is brought to you by", promo codes, "link in the description" for a paid product).
-Return the START second where the creator transitions INTO the ad and the END second where they return to the real content.
-Do not include the creator's own channel plugs or brief mentions. If none, return an empty list.
-
-${transcript.slice(0, 120000)}`;
-
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "ARRAY",
-          items: {
-            type: "OBJECT",
-            properties: { start: { type: "NUMBER" }, end: { type: "NUMBER" }, reason: { type: "STRING" } },
-            required: ["start", "end"]
-          }
-        }
-      }
-    })
-  });
-  if (!r.ok) throw new Error("Gemini " + r.status);
-  const text = (await r.json()).candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-  return JSON.parse(text).filter(s => s.end > s.start);
 }

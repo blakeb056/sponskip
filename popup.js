@@ -80,9 +80,8 @@ document.getElementById("soundToggle").onchange = (e) => {
   chrome.storage.sync.set({ playSound: e.target.checked });
 };
 
-document.getElementById("optionsBtn").onclick = () => {
-  if (chrome.runtime.openOptionsPage) chrome.runtime.openOptionsPage();
-  else window.open(chrome.runtime.getURL("options.html"));
+document.getElementById("ghBtn").onclick = () => {
+  window.open("https://github.com/sponskip/sponskip");
 };
 
 document.getElementById("rescanBtn").onclick = async () => {
