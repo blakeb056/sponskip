@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sponskip Settings</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { display: flex; height: 100vh; background: #0e0e11; color: #ececed; overflow: hidden; }
+
+    /* Left Sidebar */
+    .sidebar {
+      width: 240px;
+      background: #141418;
+      border-right: 1px solid #22222a;
+      display: flex;
+      flex-direction: column;
+    }
+    .brand {
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid #22222a;
+    }
+    .brand img { width: 32px; height: 32px; border-radius: 8px; }
+    .brand h1 { font-size: 18px; font-weight: 800; color: #fff; letter-spacing: -0.3px; }
+    .brand span { font-size: 11px; color: #777; margin-left: auto; }
+
+    .nav-list { list-style: none; padding: 16px 12px; display: flex; flex-direction: column; gap: 4px; }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #9999a1;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .nav-item:hover { color: #fff; background: #1c1c22; }
+    .nav-item.active { color: #fff; background: #dc2626; }
+    .nav-item svg { width: 18px; height: 18px; }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 20px;
+      border-top: 1px solid #22222a;
+      font-size: 12px;
+      color: #666;
+    }
+    .sidebar-footer a { color: #888; text-decoration: none; font-weight: 500; }
+    .sidebar-footer a:hover { color: #fff; }
+
+    /* Main Content */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 40px 48px;
+    }
+    .page-header { margin-bottom: 32px; }
+    .page-title { font-size: 26px; font-weight: 800; color: #fff; margin-bottom: 6px; }
+    .page-subtitle { font-size: 14px; color: #888894; }
+
+    /* Settings Cards */
+    .section-card {
+      background: #141418;
+      border: 1px solid #22222a;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 18px 24px;
+      border-bottom: 1px solid #22222a;
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .card-body { padding: 8px 24px; }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 0;
+      border-bottom: 1px solid #1c1c24;
+    }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-info { max-width: 580px; }
+    .setting-title { font-size: 14px; font-weight: 600; color: #f0f0f2; margin-bottom: 4px; }
+    .setting-desc { font-size: 12px; color: #7f7f8a; line-height: 1.4; }
+
+    /* Switch */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #2a2a32; transition: .2s; border-radius: 24px;
+    }
+    .slider:before {
+      position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px;
+      background-color: white; transition: .2s; border-radius: 50%;
+    }
+    input:checked + .slider { background-color: #dc2626; }
+    input:checked + .slider:before { transform: translateX(20px); }
+
+    /* Stats Grid */
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
+    .stat-box {
+      background: #141418;
+      border: 1px solid #22222a;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .stat-val { font-size: 32px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+    .stat-val.red { color: #ef4444; }
+    .stat-val.green { color: #22c55e; }
+    .stat-lbl { font-size: 12px; text-transform: uppercase; color: #777; font-weight: 600; letter-spacing: 0.5px; }
+
+    /* Leaderboard Table */
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+    th { padding: 12px 16px; color: #777; font-weight: 600; border-bottom: 1px solid #22222a; }
+    td { padding: 14px 16px; border-bottom: 1px solid #1c1c24; color: #ddd; }
+    tr:last-child td { border-bottom: none; }
+
+    .save-alert {
+      display: none;
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #22c55e;
+      color: #fff;
+      font-weight: 600;
+      font-size: 13px;
+      padding: 10px 18px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Left Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <img src="icons/icon48.png" alt="Sponskip Logo">
+      <h1>Sponskip</h1>
+      <span>v1.0.0</span>
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item active" data-tab="general">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        General
+      </li>
+      <li class="nav-item" data-tab="analytics">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Stats & Creators
+      </li>
+      <li class="nav-item" data-tab="privacy">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        Privacy & Data
+      </li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <p style="margin-bottom: 6px;"><a href="https://github.com/sponskip/sponskip" target="_blank">GitHub Repository ↗</a></p>
+      <p><a href="https://sponskip.com" target="_blank">sponskip.com ↗</a></p>
+    </div>
+  </aside>
+
+  <!-- Main View -->
+  <main class="content">
+
+    <!-- GENERAL TAB -->
+    <div id="generalTab">
+      <div class="page-header">
+        <h2 class="page-title">General Options</h2>
+        <p class="page-subtitle">Configure how Sponskip detects and handles in-video sponsor reads.</p>
+      </div>
+
+      <div class="section-card">
+        <div class="card-header">Playback Automation</div>
+        <div class="card-body">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-title">Auto-skip detected sponsors</div>
+              <div class="setting-desc">Automatically jump video playback past sponsor segments without requiring manual clicks.</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="autoSkip">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-title">Audio notification chime</div>
+              <div class="setting-desc">Play a subtle high-frequency chime when an in-video sponsor is skipped (helpful for background podcast listening).</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="playSound">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-title">Show on-screen toast badge</div>
+              <div class="setting-desc">Briefly display a small black badge in the bottom-left corner of the video showing the skipped sponsor duration.</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="showToast">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="card-header">Toolbar & Appearance</div>
+        <div class="card-body">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-title">Show number of ads blocked on extension icon</div>
+              <div class="setting-desc">Display a red numeric counter on the Sponskip toolbar icon matching uBlock / AdBlock style.</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="showBadgeCount">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ANALYTICS TAB -->
+    <div id="analyticsTab" style="display: none;">
+      <div class="page-header">
+        <h2 class="page-title">Stats & Leaderboards</h2>
+        <p class="page-subtitle">Lifetime metrics on time saved and sponsor-heavy creators.</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-val red" id="statTotalAds">0</div>
+          <div class="stat-lbl">Total Ads Skipped</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val green" id="statTimeSaved">0m</div>
+          <div class="stat-lbl">Total Time Saved</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="statCreatorsCount">0</div>
+          <div class="stat-lbl">Creators Encountered</div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="card-header">Creator Sponsorship Leaderboard</div>
+        <table id="leaderboardTable">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Channel / Creator</th>
+              <th>Sponsors Skipped</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboardBody">
+            <tr><td colspan="3" style="text-align:center; color:#666;">No channel statistics recorded yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PRIVACY TAB -->
+    <div id="privacyTab" style="display: none;">
+      <div class="page-header">
+        <h2 class="page-title">Privacy & Local Data</h2>
+        <p class="page-subtitle">Sponskip is built on a zero-telemetry, client-side first architecture.</p>
+      </div>
+
+      <div class="section-card">
+        <div class="card-header">Data Storage</div>
+        <div class="card-body">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-title">100% Client-Side Memory</div>
+              <div class="setting-desc">All transcript analysis, regex keyword matching, and timestamp calculations run inside your local browser memory. No audio streams, video URLs, or watch histories are ever transmitted to any external server.</div>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-title">Reset Lifetime Statistics</div>
+              <div class="setting-desc">Clear local cache and reset your total ads skipped count and creator leaderboard.</div>
+            </div>
+            <button id="clearDataBtn" style="background:#222; border:1px solid #333; color:#ef4444; padding:8px 16px; border-radius:6px; cursor:pointer; font-weight:600;">Reset Data</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <div class="save-alert" id="saveAlert">✓ Settings saved</div>
+
+  <script src="options.js"></script>
+</body>
+</html>
