@@ -135,19 +135,30 @@ function playSkipChime() {
   } catch {}
 }
 
-// Cache settings in memory to avoid querying storage 4 times a second
-let userSettings = { autoSkip: true, playSound: false };
-try {
-  chrome.storage.sync.get({ autoSkip: true, playSound: false }, s => { userSettings = s; });
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "sync") {
-      if (changes.autoSkip) userSettings.autoSkip = changes.autoSkip.newValue;
-      if (changes.playSound) userSettings.playSound = changes.playSound.newValue;
-    }
-  });
-} catch {}
+// Guard against orphaned content scripts when extension is reloaded in developer mode
+function isContextValid() {
+  return typeof chrome !== "undefined" && !!chrome.runtime?.id;
+}
 
-function tick() {
+// Cache settings in memory safely
+let userSettings = { autoSkip: true, playSound: false };
+if (isContextValid()) {
+  try {
+    chrome.storage.sync.get({ autoSkip: true, playSound: false }, s => { if (s) userSettings = s; });
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === "sync") {
+        if (changes.autoSkip) userSettings.autoSkip = changes.autoSkip.newValue;
+        if (changes.playSound) userSettings.playSound = changes.playSound.newValue;
+      }
+    });
+  } catch {}
+}
+
+const tickInterval = setInterval(() => {
+  if (!isContextValid()) {
+    clearInterval(tickInterval); // clean disconnect if extension reloads
+    return;
+  }
   const v = document.querySelector("video");
   if (!v || !segments.length || !userSettings.autoSkip) return;
 
@@ -159,8 +170,7 @@ function tick() {
       log("skipped", s);
     }
   }
-}
-setInterval(tick, 250);
+}, 250);
 
 let badge, badgeTimer;
 function showBadge(text, ms) {
@@ -177,15 +187,21 @@ function showBadge(text, ms) {
 
 function onNav() {
   const id = videoId();
-  if (location.pathname === "/watch" && id && id !== currentId) analyze(id);
+  if (location.pathname === "/watch" && id && id !== currentId) {
+    if (isContextValid()) analyze(id);
+  }
 }
 // YouTube is a single-page app: catch in-app navigation as well as first load.
 window.addEventListener("yt-navigate-finish", onNav);
 onNav();
 
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === "rescan") {
-    const id = videoId();
-    if (id) analyze(id, true);
-  }
-});
+if (isContextValid()) {
+  try {
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg.type === "rescan") {
+        const id = videoId();
+        if (id && isContextValid()) analyze(id, true);
+      }
+    });
+  } catch {}
+}
