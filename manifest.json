@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Sponskip",
+  "version": "1.0.0",
+  "description": "Auto-skip in-video sponsor reads and disguised ads on YouTube.",
+  "permissions": ["storage"],
+  "action": {
+    "default_title": "AI Sponsor Skipper",
+    "default_popup": "popup.html"
+  },
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://sponsor.ajay.app/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    { "matches": ["https://www.youtube.com/*"], "js": ["content.js"], "run_at": "document_idle" }
+  ],
+  "options_page": "options.html"
+}

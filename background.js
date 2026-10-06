@@ -1,0 +1,220 @@
+// Finds sponsor segments: 1) local cache, 2) SponsorBlock crowd data, 3) keyword detection (free, default),
+// 4) Gemini only if the user set an API key AND keywords found nothing.
+const MODEL = "gemini-flash-latest";
+
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (msg.type === "analyze") {
+    findSegments(msg.videoId, msg.transcript, !!msg.force).then(res => {
+      updateBadge(sender.tab?.id, res?.segments?.length || 0);
+      reply(res);
+    }, e => {
+      updateBadge(sender.tab?.id, 0);
+      reply({ segments: [], source: "error: " + e.message });
+    });
+  }
+  return true; // async reply
+});
+
+function updateBadge(tabId, count) {
+  if (!tabId) return;
+  if (count > 0) {
+    chrome.action.setBadgeText({ tabId, text: String(count) });
+    chrome.action.setBadgeBackgroundColor({ tabId, color: "#e53e3e" }); // red badge like uBlock
+  } else {
+    chrome.action.setBadgeText({ tabId, text: "" });
+  }
+}
+
+async function findSegments(id, transcript, force = false) {
+  const key = "seg_" + id;
+  if (!force) {
+    const cached = (await chrome.storage.local.get(key))[key];
+    // Only return cache if it actually found segments, or was checked recently
+    if (cached && cached.length > 0) return { segments: cached, source: "cache" };
+  }
+
+  const save = async (segments, source) => {
+    await chrome.storage.local.set({ [key]: segments, [key + "_source"]: source });
+    return { segments, source };
+  };
+
+  const sb = await sponsorBlock(id);
+  if (sb.length) return save(sb, "sponsorblock");
+
+  if (!transcript) return { segments: [], source: "no captions available" };
+  const kw = detectByKeywords(transcript);
+  if (kw.length) return save(kw, "keywords");
+
+  const { apiKey } = await chrome.storage.sync.get("apiKey");
+  if (apiKey) return save(await gemini(transcript), "gemini");
+  return save([], "keywords");
+}
+
+// ---- Keyword detector ----
+// Captures classic phrases + Linus Tech Tips famous segues + YouTube creator sponsor transitions
+const START = new RegExp(
+  "(" + [
+    "today'?s sponsor",
+    "this (video|episode|stream) is (brought to you|sponsored|made possible|supported)",
+    "sponsored by",
+    "brought to you by",
+    "thanks? (to )?[\\w\\s]+ for sponsoring",
+    "partnered with",
+    "a quick word from (our|today'?s) sponsor",
+    "huge thanks to",
+    // Linus Tech Tips & creator-specific segue styles
+    "speaking of [\\w\\s]+,? (our|today'?s) sponsor",
+    "you know what else (is|has|can)",
+    "transition to (our|today'?s) sponsor",
+    "segue to (our|today'?s) sponsor",
+    "seamless segue to (our|today'?s) sponsor",
+    "smooth segue to (our|today'?s) sponsor",
+    "our sponsor,? [\\w\\s]+",
+    "let'?s talk about (our sponsor|today'?s sponsor)",
+    "before we (get into|continue|move on),? (a quick word|let'?s thank)",
+    "check out [\\w\\s]+ at the link below"
+  ].join("|") + ")",
+  "i"
+);
+
+// Common sponsor names, URLs & call-to-actions (Consumer + B2B/Enterprise/Tech)
+const AD = new RegExp(
+  "(" + [
+    "promo code", "use code", "\\bcode\\b", "link (is )?(in the|down) description", "link below",
+    "first \\d[\\d,]* (people|users)", "\\d+ ?%", "percent off", "free trial", "sign up at",
+    "discount", "subscription", "money back guarantee", "offer code", "head over to",
+    "visit [\\w\\.-]+\\.(com|io|co|ai|org)", "go to [\\w\\.-]+\\.(com|io|co|ai|org)",
+    "learn more at", "check out [\\w\\s]+ at", "to learn more", "partnering with",
+    "special offer", "exclusive deal", "start your free", "schedule a demo",
+    // Frequent YouTube sponsors (Consumer + Tech/B2B)
+    "ridge (wallet|ring)", "dbrand", "squarespace", "nordvpn", "expressvpn", "surfshark",
+    "manscaped", "raycon", "betterhelp", "hellofresh", "factor meals", "casetify",
+    "grammarly", "honey", "audible", "skillshare", "brilliant", "incogni", "aura",
+    "displate", "anker", "secretlab", "ifixit", "ugreen", "lttstore",
+    // Enterprise, security, B2B & podcast sponsors
+    "\\baxon\\b", "taser", "crowdstrike", "datadog", "mongodb", "aws", "cloudflare",
+    "hubspot", "salesforce", "monday\\.com", "notion", "clickup", "shopify", "brex", "ramp"
+  ].join("|") + ")",
+  "i"
+);
+
+const RETURN = new RegExp(
+  "(" + [
+    "\\banyway",
+    "back to (the|our) (video|topic|build|benchmarks|show|review)",
+    "now (let'?s|back)",
+    "let'?s get (back|into)",
+    "where were we",
+    "with that out of the way",
+    "so,? back to",
+    "moving on",
+    "all right,? so",
+    "without further ado",
+    "thanks again to"
+  ].join("|") + ")",
+  "i"
+);
+
+const MAX_AD = 120, QUIET_GAP = 20, MIN_AD = 10;
+
+function detectByKeywords(transcript) {
+  const lines = transcript.split("\n").map(l => {
+    const m = l.match(/^\[(\d+)\]\s*(.*)$/);
+    return m && { t: +m[1], text: m[2] };
+  }).filter(Boolean);
+
+  const segs = [];
+
+  // 1. Classic start-phrase forward scan
+  for (let i = 0; i < lines.length; i++) {
+    if (!START.test(lines[i].text) || (segs.length && lines[i].t < segs.at(-1).end)) continue;
+    const start = lines[i].t;
+    let lastAd = start, end = null, hits = 1;
+    for (let j = i + 1; j < lines.length; j++) {
+      const { t, text } = lines[j];
+      if (t - start > MAX_AD) { end = start + MAX_AD; break; }
+      if (RETURN.test(text) && t - start > MIN_AD) { end = t; break; }
+      if (AD.test(text)) { lastAd = t; hits++; }
+      else if (t - lastAd > QUIET_GAP) { end = lines[j - 1]?.t ?? t; break; }
+    }
+    end ??= Math.min(lastAd + 5, start + MAX_AD);
+    if (hits >= 2 && end - start >= MIN_AD) segs.push({ start, end, reason: "keywords" });
+  }
+
+  // 2. Sneaky/Disguised Ad detection (dense ad cluster without formal "today's sponsor" start)
+  // When a creator weaves an ad smoothly into conversation and only pitches promo/discount/brand at the end:
+  for (let i = 0; i < lines.length; i++) {
+    if (segs.some(s => lines[i].t >= s.start && lines[i].t <= s.end)) continue;
+    
+    // Look ahead 30s for clustered AD hits (e.g., promo codes, discount, sponsor links)
+    const windowHits = lines.filter(l => l.t >= lines[i].t && l.t <= lines[i].t + 35 && AD.test(l.text));
+    if (windowHits.length >= 2) {
+      // Found an ad pitch! Now trace BACKWARD up to 45s to catch the disguised transition / story lead
+      let startIdx = i;
+      for (let b = i - 1; b >= 0 && (lines[i].t - lines[b].t) <= 45; b--) {
+        if (segs.some(s => lines[b].t >= s.start && lines[b].t <= s.end)) break;
+        if (RETURN.test(lines[b].text)) break; // hit previous content boundary
+        startIdx = b;
+      }
+
+      const start = lines[startIdx].t;
+      let lastAd = windowHits.at(-1).t;
+      let end = null;
+      for (let j = i; j < lines.length && lines[j].t - start <= MAX_AD; j++) {
+        const { t, text } = lines[j];
+        if (RETURN.test(text) && t - start > MIN_AD) { end = t; break; }
+        if (AD.test(text)) lastAd = t;
+        else if (t - lastAd > QUIET_GAP) { end = lines[j - 1]?.t ?? t; break; }
+      }
+      end ??= Math.min(lastAd + 8, start + MAX_AD);
+
+      if (end - start >= MIN_AD && !segs.some(s => (start >= s.start && start <= s.end) || (end >= s.start && end <= s.end))) {
+        segs.push({ start, end, reason: "disguised-ad" });
+        segs.sort((a, b) => a.start - b.start);
+      }
+    }
+  }
+
+  return segs;
+}
+
+async function sponsorBlock(id) {
+  try {
+    const r = await fetch(`https://sponsor.ajay.app/api/skipSegments?videoID=${id}&categories=["sponsor","selfpromo"]`);
+    if (!r.ok) return [];
+    return (await r.json()).map(s => ({ start: s.segment[0], end: s.segment[1], reason: s.category }));
+  } catch { return []; }
+}
+
+async function gemini(transcript) {
+  const { apiKey } = await chrome.storage.sync.get("apiKey");
+  if (!apiKey) throw new Error("no Gemini API key set (open extension options)");
+  const prompt = `Below is a YouTube transcript; each line starts with [seconds].
+Find every paid sponsor read / ad segment (e.g. "today's sponsor", "this video is brought to you by", promo codes, "link in the description" for a paid product).
+Return the START second where the creator transitions INTO the ad and the END second where they return to the real content.
+Do not include the creator's own channel plugs or brief mentions. If none, return an empty list.
+
+${transcript.slice(0, 120000)}`;
+
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "ARRAY",
+          items: {
+            type: "OBJECT",
+            properties: { start: { type: "NUMBER" }, end: { type: "NUMBER" }, reason: { type: "STRING" } },
+            required: ["start", "end"]
+          }
+        }
+      }
+    })
+  });
+  if (!r.ok) throw new Error("Gemini " + r.status);
+  const text = (await r.json()).candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+  return JSON.parse(text).filter(s => s.end > s.start);
+}
