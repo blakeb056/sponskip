@@ -8,45 +8,45 @@ const videoId = () => new URL(location.href).searchParams.get("v");
 
 async function getCaptions(id) {
   let tracks = [];
-  try {
-    // 1. Try reading directly from document scripts
-    for (const s of document.querySelectorAll("script")) {
-      const text = s.textContent || "";
-      if (text.includes("captionTracks")) {
-        const m = text.match(/"captionTracks":\s*(\[.+?\])/);
-        if (m) {
-          try {
-            tracks = JSON.parse(m[1]);
-            if (tracks.length) break;
-          } catch {}
-        }
-      }
-    }
-  } catch (e) { log("DOM script parse error", e); }
 
-  // 2. Direct player API request fallback (always has valid signed session for that user)
+  // 1. Fetch via Android InnerTube client (consistently supplies signed timedtext XML with 0 bot-blocks)
+  try {
+    const pReq = await fetch("https://www.youtube.com/youtubei/v1/player", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        videoId: id,
+        context: {
+          client: {
+            clientName: "ANDROID",
+            clientVersion: "20.10.38",
+            androidSdkVersion: 30,
+            hl: "en",
+            gl: "US"
+          }
+        }
+      })
+    });
+    if (pReq.ok) {
+      const pData = await pReq.json();
+      tracks = pData?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+    }
+  } catch (e) { log("Android player fetch error", e); }
+
+  // 2. Fallback to DOM script tags
   if (!tracks.length) {
     try {
-      const pReq = await fetch("https://www.youtube.com/youtubei/v1/player?prettyPrint=false", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          videoId: id,
-          context: {
-            client: {
-              clientName: "WEB",
-              clientVersion: "2.20240101.00.00",
-              hl: "en",
-              gl: "US"
-            }
+      for (const s of document.querySelectorAll("script")) {
+        const text = s.textContent || "";
+        if (text.includes("captionTracks")) {
+          const m = text.match(/"captionTracks":\s*(\[.+?\])/);
+          if (m) {
+            tracks = JSON.parse(m[1]);
+            if (tracks.length) break;
           }
-        })
-      });
-      if (pReq.ok) {
-        const pData = await pReq.json();
-        tracks = pData?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+        }
       }
-    } catch (e) { log("innertube player fetch error", e); }
+    } catch (e) { log("DOM script parse error", e); }
   }
 
   if (!tracks.length) {
@@ -55,37 +55,38 @@ async function getCaptions(id) {
   }
 
   const track = tracks.find(t => t.languageCode?.startsWith("en")) || tracks[0];
-  log("using caption track:", track.languageCode, track.name?.simpleText || track.name);
+  log("fetching caption track:", track.languageCode, track.baseUrl?.slice(0, 80));
 
-  // Fetch captions (try json3 first, fallback to xml)
   try {
-    const res = await fetch(track.baseUrl + "&fmt=json3");
-    if (res.ok) {
-      const data = await res.json();
-      const events = data.events || [];
-      const parsed = events
-        .filter(e => e.segs)
-        .map(e => `[${Math.round(e.tStartMs / 1000)}] ${e.segs.map(s => s.utf8).join("").replace(/\n/g, " ").trim()}`)
-        .filter(l => !l.endsWith("] "))
-        .join("\n");
-      if (parsed.length > 50) return parsed;
-    }
-  } catch (e) { log("json3 fetch error", e); }
+    const res = await fetch(track.baseUrl);
+    const xmlText = await res.text();
+    if (!xmlText || xmlText.length < 50) return null;
 
-  // Fallback to XML timedtext
-  try {
-    const xmlRes = await fetch(track.baseUrl);
-    const xmlText = await xmlRes.text();
     const parser = new DOMParser();
     const doc = parser.parseFromString(xmlText, "text/xml");
-    const texts = Array.from(doc.querySelectorAll("text"));
-    return texts.map(el => {
-      const start = Math.round(parseFloat(el.getAttribute("start") || "0"));
-      const text = el.textContent.replace(/\n/g, " ").trim();
-      return `[${start}] ${text}`;
-    }).filter(l => !l.endsWith("] ")).join("\n");
+
+    // Format 3: <p t="ms" d="ms">text</p> (Android srv3 / standard timedtext)
+    const pTags = Array.from(doc.querySelectorAll("p"));
+    if (pTags.length > 0) {
+      return pTags.map(el => {
+        const tMs = parseInt(el.getAttribute("t") || "0", 10);
+        const sec = Math.round(tMs / 1000);
+        const text = el.textContent.replace(/\n/g, " ").trim();
+        return `[${sec}] ${text}`;
+      }).filter(l => !l.endsWith("] ")).join("\n");
+    }
+
+    // Format 1: <text start="s" dur="s">text</text>
+    const textTags = Array.from(doc.querySelectorAll("text"));
+    if (textTags.length > 0) {
+      return textTags.map(el => {
+        const start = Math.round(parseFloat(el.getAttribute("start") || "0"));
+        const text = el.textContent.replace(/\n/g, " ").trim();
+        return `[${start}] ${text}`;
+      }).filter(l => !l.endsWith("] ")).join("\n");
+    }
   } catch (e) {
-    log("xml fetch error", e);
+    log("caption download or parse error", e);
   }
 
   return null;
