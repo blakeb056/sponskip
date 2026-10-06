@@ -2,7 +2,7 @@
 
 > **Auto-skip in-video sponsor reads and disguised ads on YouTube.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: Source-Available](https://img.shields.io/badge/License-Source--Available-red.svg)](LICENSE)
 [![Manifest V3](https://img.shields.io/badge/Chrome%20Extension-Manifest%20V3-brightgreen.svg)](manifest.json)
 
 Most YouTube ad blockers only stop pre-roll and mid-roll popups. But on podcasts, creator shows, and tech reviews, creators embed **sponsored pitch reads directly into the video**—often disguised as organic stories before revealing a promo code or sponsor link.
@@ -60,4 +60,4 @@ Sponskip uses a high-speed, multi-tier detection pipeline designed to run with *
 
 ## 📄 License
 
-MIT © [Blake Burford](https://github.com/blakeb056)
+Source-Available / All Rights Reserved © [Blake Burford](https://github.com/blakeb056). See [LICENSE](LICENSE) for details. Free for personal inspection and use; redistribution or re-publishing to extension stores is strictly prohibited.

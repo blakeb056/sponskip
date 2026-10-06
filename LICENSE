@@ -1,16 +1,18 @@
-MIT License
+Copyright (c) 2026 Blake Burford. All Rights Reserved.
 
-Copyright (c) 2026 Blake Burford
+This software and associated documentation files (the "Software") are proprietary 
+and confidential. 
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+SOURCE-AVAILABLE / NON-COMMERCIAL LICENSE:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. Permission is hereby granted to view, inspect, and compile this source code solely 
+   for personal evaluation, verification of security/privacy practices, and private personal use.
+
+2. You may NOT copy, modify, redistribute, publish, sub-license, bundle, repackage, 
+   host, or commercially exploit this software, in whole or in part, in any form or medium.
+
+3. You may NOT publish or distribute derivatives, forks, or copies of this extension 
+   to the Chrome Web Store, Firefox Add-ons, Edge Add-ons, or any other extension marketplace.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
