@@ -5,7 +5,9 @@ const MODEL = "gemini-flash-latest";
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg.type === "analyze") {
     findSegments(msg.videoId, msg.transcript, !!msg.force).then(res => {
-      updateBadge(sender.tab?.id, res?.segments?.length || 0);
+      const segs = res?.segments || [];
+      updateBadge(sender.tab?.id, segs.length);
+      if (segs.length > 0) recordStats(msg.channelName, segs);
       reply(res);
     }, e => {
       updateBadge(sender.tab?.id, 0);
@@ -14,6 +16,29 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   }
   return true; // async reply
 });
+
+async function recordStats(channelName, segments) {
+  if (!segments || !segments.length) return;
+  const channel = channelName && channelName !== "Unknown Creator" ? channelName : "Other Channels";
+  const data = await chrome.storage.local.get({
+    totalAdsSkipped: 0,
+    totalSecondsSaved: 0,
+    channelStats: {}
+  });
+
+  let totalAds = data.totalAdsSkipped + segments.length;
+  let addedSeconds = segments.reduce((acc, s) => acc + Math.round((s.end - s.start) || 0), 0);
+  let totalSec = data.totalSecondsSaved + addedSeconds;
+
+  let channelStats = data.channelStats || {};
+  channelStats[channel] = (channelStats[channel] || 0) + segments.length;
+
+  await chrome.storage.local.set({
+    totalAdsSkipped: totalAds,
+    totalSecondsSaved: totalSec,
+    channelStats
+  });
+}
 
 function updateBadge(tabId, count) {
   if (!tabId) return;

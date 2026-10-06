@@ -97,8 +97,26 @@
 
   <div class="stat-card">
     <div class="stat-number" id="count">0</div>
-    <div class="stat-label">Sponsors Blocked on this video</div>
+    <div class="stat-label">Sponsors on this video</div>
     <div class="stat-source" id="source">Waiting for video...</div>
+  </div>
+
+  <!-- Lifetime Analytics Grid -->
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+    <div style="background: #1a1a1a; border: 1px solid #2e2e2e; border-radius: 8px; padding: 10px; text-align: center;">
+      <div style="font-size: 18px; font-weight: 800; color: #fff;" id="totalAdsStat">0</div>
+      <div style="font-size: 10px; text-transform: uppercase; color: #777; font-weight: 600;">Total Ads Skipped</div>
+    </div>
+    <div style="background: #1a1a1a; border: 1px solid #2e2e2e; border-radius: 8px; padding: 10px; text-align: center;">
+      <div style="font-size: 18px; font-weight: 800; color: #22c55e;" id="totalTimeStat">0m</div>
+      <div style="font-size: 10px; text-transform: uppercase; color: #777; font-weight: 600;">Time Saved</div>
+    </div>
+  </div>
+
+  <!-- Top Creator Ad Leaderboard -->
+  <div class="section-title">Most Sponsored Creators</div>
+  <div id="leaderboardList" style="background: #1a1a1a; border: 1px solid #2e2e2e; border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; font-size: 12px;">
+    <div class="empty-state" style="padding: 6px 0;">No creator history yet</div>
   </div>
 
   <div class="section-title">Detected Timestamps</div>

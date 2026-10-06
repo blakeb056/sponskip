@@ -39,6 +39,33 @@ async function loadData() {
     `).join("");
   }
 
+  // Render Lifetime Analytics & Creator Leaderboard
+  const lifetime = await chrome.storage.local.get({
+    totalAdsSkipped: 0,
+    totalSecondsSaved: 0,
+    channelStats: {}
+  });
+
+  document.getElementById("totalAdsStat").textContent = lifetime.totalAdsSkipped;
+  const minsSaved = Math.round(lifetime.totalSecondsSaved / 60);
+  document.getElementById("totalTimeStat").textContent = minsSaved >= 60 ? `${(minsSaved/60).toFixed(1)}h` : `${minsSaved}m`;
+
+  const lbEl = document.getElementById("leaderboardList");
+  const channels = Object.entries(lifetime.channelStats || {}).sort((a, b) => b[1] - a[1]);
+
+  if (channels.length === 0) {
+    lbEl.innerHTML = `<div class="empty-state" style="padding: 4px 0;">No creator history yet</div>`;
+  } else {
+    lbEl.innerHTML = channels.slice(0, 3).map(([name, count], i) => `
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #242424;">
+        <span style="color: #ddd; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px;">
+          ${i === 0 ? '👑 ' : ''}${name}
+        </span>
+        <span style="font-weight: 700; color: #ff4d4d;">${count} ad${count > 1 ? 's' : ''}</span>
+      </div>
+    `).join("");
+  }
+
   // Load user settings
   const settings = await chrome.storage.sync.get({ autoSkip: true, playSound: false });
   document.getElementById("autoSkipToggle").checked = settings.autoSkip;

@@ -92,6 +92,11 @@ async function getCaptions(id) {
   return null;
 }
 
+function getChannelName() {
+  const el = document.querySelector("#channel-name a, ytd-channel-name a, #owner-name a");
+  return el?.textContent?.trim() || "Unknown Creator";
+}
+
 async function analyze(id, force = false) {
   currentId = id;
   segments = [];
@@ -101,7 +106,8 @@ async function analyze(id, force = false) {
     try { transcript = await getCaptions(id); } catch (e) { log("captions failed", e); }
     log(`Captions fetched for ${id}:`, transcript ? `${transcript.length} characters` : "None");
 
-    const res = await chrome.runtime.sendMessage({ type: "analyze", videoId: id, transcript, force });
+    const channelName = getChannelName();
+    const res = await chrome.runtime.sendMessage({ type: "analyze", videoId: id, transcript, channelName, force });
     if (id !== currentId) return; // user navigated away mid-scan
     segments = res?.segments || [];
     log(`Detection result (${res?.source}):`, segments);
