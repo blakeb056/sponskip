@@ -135,17 +135,26 @@ function playSkipChime() {
   } catch {}
 }
 
-async function tick() {
+// Cache settings in memory to avoid querying storage 4 times a second
+let userSettings = { autoSkip: true, playSound: false };
+try {
+  chrome.storage.sync.get({ autoSkip: true, playSound: false }, s => { userSettings = s; });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "sync") {
+      if (changes.autoSkip) userSettings.autoSkip = changes.autoSkip.newValue;
+      if (changes.playSound) userSettings.playSound = changes.playSound.newValue;
+    }
+  });
+} catch {}
+
+function tick() {
   const v = document.querySelector("video");
-  if (!v || !segments.length) return;
-  
-  const { autoSkip = true, playSound = false } = await chrome.storage.sync.get({ autoSkip: true, playSound: false });
-  if (!autoSkip) return;
+  if (!v || !segments.length || !userSettings.autoSkip) return;
 
   for (const s of segments) {
     if (v.currentTime >= s.start && v.currentTime < s.end - 0.5) {
       v.currentTime = s.end;
-      if (playSound) playSkipChime();
+      if (userSettings.playSound) playSkipChime();
       showBadge(`⏭️ skipped sponsor (${Math.round(s.end - s.start)}s)`, 2500);
       log("skipped", s);
     }
