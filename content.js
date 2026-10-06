@@ -111,12 +111,34 @@ async function analyze(id, force = false) {
   }
 }
 
-function tick() {
+function playSkipChime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5 note
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12); // A5 note
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.18);
+  } catch {}
+}
+
+async function tick() {
   const v = document.querySelector("video");
   if (!v || !segments.length) return;
+  
+  const { autoSkip = true, playSound = false } = await chrome.storage.sync.get({ autoSkip: true, playSound: false });
+  if (!autoSkip) return;
+
   for (const s of segments) {
     if (v.currentTime >= s.start && v.currentTime < s.end - 0.5) {
       v.currentTime = s.end;
+      if (playSound) playSkipChime();
       showBadge(`⏭️ skipped sponsor (${Math.round(s.end - s.start)}s)`, 2500);
       log("skipped", s);
     }

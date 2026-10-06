@@ -50,28 +50,47 @@ async function findSegments(id, transcript, force = false) {
   return save([], "keywords");
 }
 
-// ---- Keyword detector ----
-// Captures classic phrases + Linus Tech Tips famous segues + YouTube creator sponsor transitions
+// ---- Linguistic Segment Detector ----
+// Synthesized from corpus studies on host-read podcast ads and YouTube creator segues:
+// 1. Direct sponsor acknowledgments
+// 2. Structural break signals ("quick break", "pause the conversation")
+// 3. Parasocial recommendation transitions ("something that's helped me", "excited to share")
+// 4. "Ties in / speaking of" bridge segues
 const START = new RegExp(
   "(" + [
+    // Direct sponsor cues
     "today'?s sponsor",
-    "this (video|episode|stream) is (brought to you|sponsored|made possible|supported)",
+    "this (video|episode|stream|show|conversation|interview) is (brought to you|sponsored|made possible|supported|presented)",
     "sponsored by",
     "brought to you by",
     "thanks? (to )?[\\w\\s]+ for sponsoring",
     "partnered with",
-    "a quick word from (our|today'?s) sponsor",
+    "a (quick )?word from (our|today'?s) sponsor",
     "huge thanks to",
-    // Linus Tech Tips & creator-specific segue styles
+    "support for (today'?s episode|this show|our podcast) comes from",
+    "our partners? at",
+    // Structural breaks & breathers (Podcasts & Interviews)
+    "take a quick break to (hear|talk|thank)",
+    "let'?s take a (quick )?break",
+    "before we (get into|continue|move on|jump into that|hear from|wrap up),? (a quick word|let'?s thank|i want to|we have to)",
+    "pause the conversation (for a moment|really quick)",
+    "we'?ll be right back after this",
+    // Linus & conversational bridge segues
     "speaking of [\\w\\s]+,? (our|today'?s) sponsor",
+    "that actually ties in (perfectly )?with",
     "you know what else (is|has|can)",
-    "transition to (our|today'?s) sponsor",
-    "segue to (our|today'?s) sponsor",
     "seamless segue to (our|today'?s) sponsor",
     "smooth segue to (our|today'?s) sponsor",
+    "segue to (our|today'?s) sponsor",
     "our sponsor,? [\\w\\s]+",
     "let'?s talk about (our sponsor|today'?s sponsor)",
-    "before we (get into|continue|move on),? (a quick word|let'?s thank)",
+    // Parasocial story / personal recommendation intros
+    "if you'?ve been struggling with",
+    "something that has been helping me",
+    "i'?m always looking for ways to",
+    "excited to be partnering with",
+    "i want to take a (quick )?moment to (tell you|share|talk)",
+    "shoutout to [\\w\\s]+ for making this",
     "check out [\\w\\s]+ at the link below"
   ].join("|") + ")",
   "i"

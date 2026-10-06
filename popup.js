@@ -38,7 +38,20 @@ async function loadData() {
       </div>
     `).join("");
   }
+
+  // Load user settings
+  const settings = await chrome.storage.sync.get({ autoSkip: true, playSound: false });
+  document.getElementById("autoSkipToggle").checked = settings.autoSkip;
+  document.getElementById("soundToggle").checked = settings.playSound;
 }
+
+document.getElementById("autoSkipToggle").onchange = (e) => {
+  chrome.storage.sync.set({ autoSkip: e.target.checked });
+};
+
+document.getElementById("soundToggle").onchange = (e) => {
+  chrome.storage.sync.set({ playSound: e.target.checked });
+};
 
 document.getElementById("optionsBtn").onclick = () => {
   if (chrome.runtime.openOptionsPage) chrome.runtime.openOptionsPage();
