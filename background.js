@@ -48,12 +48,30 @@ function updateBadge(tabId, count) {
   }
 }
 
+const CACHE_PREFIX = "v2_seg_";
+
+// Flush legacy false-positive cache entries on extension reload/install
+chrome.runtime.onInstalled.addListener(async () => {
+  try {
+    const all = await chrome.storage.local.get(null);
+    const legacyKeys = Object.keys(all).filter(k => k.startsWith("seg_"));
+    if (legacyKeys.length) {
+      await chrome.storage.local.remove(legacyKeys);
+      console.log("[SponsorSkipper] Flushed legacy unversioned cache entries:", legacyKeys.length);
+    }
+  } catch (e) {
+    console.error("[SponsorSkipper] Cache flush error:", e);
+  }
+});
+
 async function findSegments(id, transcript, force = false) {
-  const key = "seg_" + id;
+  const key = CACHE_PREFIX + id;
   if (!force) {
-    const cached = (await chrome.storage.local.get(key))[key];
-    // Only return cache if it actually found segments, or was checked recently
-    if (cached && cached.length > 0) return { segments: cached, source: "cache" };
+    const data = await chrome.storage.local.get([key, key + "_source"]);
+    const cached = data[key];
+    if (cached && !cached.some(s => s.reason === "disguised-ad")) {
+      return { segments: cached, source: data[key + "_source"] || "cache" };
+    }
   }
 
   const save = async (segments, source) => {
@@ -68,6 +86,7 @@ async function findSegments(id, transcript, force = false) {
   const kw = detectByKeywords(transcript);
   return save(kw, "keywords");
 }
+
 
 // ---- Intelligent Sponsor Detector ----
 // Multi-pass semantic engine designed to eliminate false positives on tech, coding & gaming videos

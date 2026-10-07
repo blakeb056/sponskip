@@ -16,7 +16,7 @@ async function loadData() {
   const vId = url.searchParams.get("v");
   if (!vId) return;
 
-  const key = "seg_" + vId;
+  const key = "v2_seg_" + vId;
   const data = await chrome.storage.local.get([key, key + "_source"]);
   const segments = data[key] || [];
   const source = data[key + "_source"] || "scanned";
