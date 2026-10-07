@@ -69,91 +69,79 @@ async function findSegments(id, transcript, force = false) {
   return save(kw, "keywords");
 }
 
-// ---- Linguistic Segment Detector ----
-// Synthesized from corpus studies on host-read podcast ads and YouTube creator segues:
-// 1. Direct sponsor acknowledgments
-// 2. Structural break signals ("quick break", "pause the conversation")
-// 3. Parasocial recommendation transitions ("something that's helped me", "excited to share")
-// 4. "Ties in / speaking of" bridge segues
-const START = new RegExp(
+// ---- Intelligent Sponsor Detector ----
+// Multi-pass semantic engine designed to eliminate false positives on tech, coding & gaming videos
+// while capturing both explicit declarations and host-read/disguised sponsorship reads.
+
+const SPONSOR_DECLARATION = new RegExp(
   "(" + [
-    // Direct sponsor cues
     "today'?s sponsor",
-    "this (video|episode|stream|show|conversation|interview) is (brought to you|sponsored|made possible|supported|presented)",
+    "this (video|episode|stream|show|conversation|interview|podcast) is (brought to you|sponsored|made possible|supported|presented)",
     "sponsored by",
     "brought to you by",
+    "presenting sponsor",
+    "sponsor of this (podcast|video|show|channel|episode)",
     "thanks? (to )?[\\w\\s]+ for sponsoring",
     "partnered with",
     "a (quick )?word from (our|today'?s) sponsor",
-    "huge thanks to",
     "support for (today'?s episode|this show|our podcast) comes from",
     "our partners? at",
-    // Structural breaks & breathers (Podcasts & Interviews)
-    "take a quick break to (hear|talk|thank)",
-    "let'?s take a (quick )?break",
-    "before we (get into|continue|move on|jump into that|hear from|wrap up),? (a quick word|let'?s thank|i want to|we have to)",
-    "pause the conversation (for a moment|really quick)",
-    "we'?ll be right back after this",
-    // Linus & conversational bridge segues
-    "speaking of [\\w\\s]+,? (our|today'?s) sponsor",
-    "that actually ties in (perfectly )?with",
-    "you know what else (is|has|can)",
     "seamless segue to (our|today'?s) sponsor",
     "smooth segue to (our|today'?s) sponsor",
-    "segue to (our|today'?s) sponsor",
-    "our sponsor,? [\\w\\s]+",
-    "let'?s talk about (our sponsor|today'?s sponsor)",
-    // Parasocial story / personal recommendation intros
-    "if you'?ve been struggling with",
-    "something that has been helping me",
-    "i'?m always looking for ways to",
-    "excited to be partnering with",
-    "i want to take a (quick )?moment to (tell you|share|talk)",
-    "shoutout to [\\w\\s]+ for making this",
-    "check out [\\w\\s]+ at the link below"
+    "our sponsor,? [\\w\\s]+"
   ].join("|") + ")",
   "i"
 );
 
-// Common sponsor names, URLs & call-to-actions (Consumer + B2B/Enterprise/Tech)
-const AD = new RegExp(
+// High-confidence commercial call-to-actions (must indicate genuine commercial conversion intent)
+const COMMERCIAL_CTA = new RegExp(
   "(" + [
-    "promo code", "use code", "\\bcode\\b", "link (is )?(in the|down) description", "link below",
-    "first \\d[\\d,]* (people|users)", "\\d+ ?%", "percent off", "free trial", "sign up at",
-    "discount", "subscription", "money back guarantee", "offer code", "head over to",
-    "visit [\\w\\.-]+\\.(com|io|co|ai|org)", "go to [\\w\\.-]+\\.(com|io|co|ai|org)",
-    "learn more at", "check out [\\w\\s]+ at", "to learn more", "partnering with",
-    "special offer", "exclusive deal", "start your free", "schedule a demo",
-    // Frequent YouTube sponsors (Consumer + Tech/B2B)
-    "ridge (wallet|ring)", "dbrand", "squarespace", "nordvpn", "expressvpn", "surfshark",
-    "manscaped", "raycon", "betterhelp", "hellofresh", "factor meals", "casetify",
-    "grammarly", "honey", "audible", "skillshare", "brilliant", "incogni", "aura",
-    "displate", "anker", "secretlab", "ifixit", "ugreen", "lttstore",
-    // Enterprise, security, B2B & podcast sponsors
-    "\\baxon\\b", "taser", "crowdstrike", "datadog", "mongodb", "aws", "cloudflare",
-    "hubspot", "salesforce", "monday\\.com", "notion", "clickup", "shopify", "brex", "ramp"
+    "(promo|discount|coupon|offer) code",
+    "\\b(use|enter|apply)\\s+(the\\s+)?(promo\\s+|discount\\s+)?code\\b",
+    "link (is )?(in the|down) (description|below|show notes)",
+    "link down below",
+    "\\b\\d+ ?% (off|discount|cashback|cash back|savings)\\b",
+    "\\b(save|get) (\\d+ ?%|\\$\\d+)\\b",
+    "\\bfree trial\\b",
+    "\\bfree shipping\\b",
+    "\\bmoney[- ]back guarantee\\b",
+    "\\b(head over|go|visit)\\s+(to|on)?\\s+[a-z0-9-]+\\.(com|io|co|ai|org|net|store|app)\\b",
+    "\\b[a-z0-9-]+\\.(com|io|co|ai|org|net|store|app)\\/[a-z0-9_\\.-]+\\b",
+    "\\bfirst \\d[\\d,]* (people|users|listeners|viewers)\\b",
+    "\\bexclusive deal\\b",
+    "\\bspecial offer\\b"
   ].join("|") + ")",
+  "i"
+);
+
+// Established YouTube/podcast sponsor brands
+const KNOWN_SPONSORS = new RegExp(
+  "\\b(" + [
+    "ridge wallet", "dbrand", "squarespace", "nordvpn", "expressvpn", "surfshark",
+    "manscaped", "raycon", "betterhelp", "hellofresh", "factor meals", "casetify",
+    "grammarly", "audible", "skillshare", "brilliant", "incogni", "aura",
+    "displate", "anker", "secretlab", "ifixit", "ugreen", "lttstore",
+    "axon", "ramp", "deel", "brex", "honey"
+  ].join("|") + ")\\b",
   "i"
 );
 
 const RETURN = new RegExp(
   "(" + [
     "\\banyway",
-    "back to (the|our) (video|topic|build|benchmarks|show|review)",
-    "now (let'?s|back)",
-    "let'?s get (back|into)",
+    "back to (the|our) (video|topic|build|benchmarks|show|review|conversation|interview)",
+    "let'?s get back (to|into)",
     "where were we",
     "with that out of the way",
     "so,? back to",
     "moving on",
-    "all right,? so",
     "without further ado",
     "thanks again to"
   ].join("|") + ")",
   "i"
 );
 
-const MAX_AD = 120, QUIET_GAP = 20, MIN_AD = 10;
+const MAX_AD = 120, QUIET_GAP = 16, MIN_AD = 12;
 
 function detectByKeywords(transcript) {
   const lines = transcript.split("\n").map(l => {
@@ -163,52 +151,88 @@ function detectByKeywords(transcript) {
 
   const segs = [];
 
-  // 1. Classic start-phrase forward scan
-  for (let i = 0; i < lines.length; i++) {
-    if (!START.test(lines[i].text) || (segs.length && lines[i].t < segs.at(-1).end)) continue;
-    const start = lines[i].t;
-    let lastAd = start, end = null, hits = 1;
-    for (let j = i + 1; j < lines.length; j++) {
-      const { t, text } = lines[j];
-      if (t - start > MAX_AD) { end = start + MAX_AD; break; }
-      if (RETURN.test(text) && t - start > MIN_AD) { end = t; break; }
-      if (AD.test(text)) { lastAd = t; hits++; }
-      else if (t - lastAd > QUIET_GAP) { end = lines[j - 1]?.t ?? t; break; }
-    }
-    end ??= Math.min(lastAd + 5, start + MAX_AD);
-    if (hits >= 2 && end - start >= MIN_AD) segs.push({ start, end, reason: "keywords" });
-  }
-
-  // 2. Sneaky/Disguised Ad detection (dense ad cluster without formal "today's sponsor" start)
-  // When a creator weaves an ad smoothly into conversation and only pitches promo/discount/brand at the end:
+  // Pass 1: Explicit sponsor declarations ("sponsored by", "presenting sponsor", etc.)
   for (let i = 0; i < lines.length; i++) {
     if (segs.some(s => lines[i].t >= s.start && lines[i].t <= s.end)) continue;
-    
-    // Look ahead 30s for clustered AD hits (e.g., promo codes, discount, sponsor links)
-    const windowHits = lines.filter(l => l.t >= lines[i].t && l.t <= lines[i].t + 35 && AD.test(l.text));
-    if (windowHits.length >= 2) {
-      // Found an ad pitch! Now trace BACKWARD up to 45s to catch the disguised transition / story lead
-      let startIdx = i;
-      for (let b = i - 1; b >= 0 && (lines[i].t - lines[b].t) <= 45; b--) {
-        if (segs.some(s => lines[b].t >= s.start && lines[b].t <= s.end)) break;
-        if (RETURN.test(lines[b].text)) break; // hit previous content boundary
-        startIdx = b;
+
+    if (SPONSOR_DECLARATION.test(lines[i].text)) {
+      // Find start: look back up to 14s for host cut or segue
+      let start = lines[i].t;
+      for (let b = i - 1; b >= 0 && (lines[i].t - lines[b].t) <= 14; b--) {
+        if (/^[-—&gt;]+\s*|before we|take a (quick )?break|want to tell you|quick word/i.test(lines[b].text)) {
+          start = lines[b].t;
+          break;
+        }
       }
 
-      const start = lines[startIdx].t;
-      let lastAd = windowHits.at(-1).t;
+      let lastAd = lines[i].t;
       let end = null;
-      for (let j = i; j < lines.length && lines[j].t - start <= MAX_AD; j++) {
+      for (let j = i; j < lines.length && (lines[j].t - start) <= MAX_AD; j++) {
         const { t, text } = lines[j];
-        if (RETURN.test(text) && t - start > MIN_AD) { end = t; break; }
-        if (AD.test(text)) lastAd = t;
-        else if (t - lastAd > QUIET_GAP) { end = lines[j - 1]?.t ?? t; break; }
+        if (RETURN.test(text) && t - start >= MIN_AD) {
+          end = t;
+          break;
+        }
+        if (COMMERCIAL_CTA.test(text) || KNOWN_SPONSORS.test(text)) {
+          lastAd = t;
+        } else if (t - lastAd > QUIET_GAP && t - start >= MIN_AD) {
+          end = lines[j - 1]?.t || lastAd;
+          break;
+        }
       }
-      end ??= Math.min(lastAd + 8, start + MAX_AD);
+      end = end || Math.min(lastAd + 6, start + MAX_AD);
+      if (end - start >= MIN_AD) {
+        segs.push({ start, end, reason: "sponsor" });
+      }
+    }
+  }
 
-      if (end - start >= MIN_AD && !segs.some(s => (start >= s.start && start <= s.end) || (end >= s.start && end <= s.end))) {
-        segs.push({ start, end, reason: "disguised-ad" });
-        segs.sort((a, b) => a.start - b.start);
+  // Pass 2: Host-read / Disguised ad pitch (e.g. Axon, Deel, Ramp without formal declaration)
+  // MUST have a commercial CTA (e.g. "axon.ai/senra", "deel.com/centra", "go to ramp.com")
+  // AND either a KNOWN_SPONSOR or repeated CTA hits
+  for (let i = 0; i < lines.length; i++) {
+    if (segs.some(s => lines[i].t >= s.start && lines[i].t <= s.end)) continue;
+
+    const hasBrand = KNOWN_SPONSORS.test(lines[i].text);
+    const hasCta = COMMERCIAL_CTA.test(lines[i].text);
+
+    if (hasBrand || hasCta) {
+      // Look forward up to 55s for confirmed CTA
+      const window = lines.filter(l => l.t >= lines[i].t && l.t <= lines[i].t + 55);
+      const ctas = window.filter(l => COMMERCIAL_CTA.test(l.text));
+      const brands = window.filter(l => KNOWN_SPONSORS.test(l.text));
+
+      // Must have at least 1 verified commercial CTA + (brand mention OR multiple CTAs)
+      if (ctas.length >= 1 && (brands.length >= 1 || ctas.length >= 2)) {
+        let start = lines[i].t;
+        // Trace back to start of sentence / host cut (max 14s)
+        for (let b = i - 1; b >= 0 && (lines[i].t - lines[b].t) <= 14; b--) {
+          if (/^[-—&gt;]+|favorite quote|check out|studying how/i.test(lines[b].text)) {
+            start = lines[b].t;
+            break;
+          }
+        }
+
+        let lastAd = ctas.at(-1).t;
+        let end = null;
+        for (let j = i; j < lines.length && (lines[j].t - start) <= MAX_AD; j++) {
+          const { t, text } = lines[j];
+          if (RETURN.test(text) && t - start >= MIN_AD) {
+            end = t;
+            break;
+          }
+          if (COMMERCIAL_CTA.test(text) || KNOWN_SPONSORS.test(text)) {
+            lastAd = t;
+          } else if (t - lastAd > QUIET_GAP && t - start >= MIN_AD) {
+            end = lines[j - 1]?.t || lastAd;
+            break;
+          }
+        }
+        end = end || Math.min(lastAd + 6, start + MAX_AD);
+        if (end - start >= MIN_AD && !segs.some(s => (start >= s.start && start <= s.end))) {
+          segs.push({ start, end, reason: "sponsor" });
+          segs.sort((a, b) => a.start - b.start);
+        }
       }
     }
   }
